@@ -360,7 +360,9 @@ async function prepareSourcePlan(params: {
         isSkipReFetch: false,
       };
     }
-    logger.debug(`Tree API result for ${sourceKey} is truncated, falling back to sequential listing.`);
+    logger.debug(
+      `Tree API result for ${sourceKey} is truncated, falling back to sequential listing.`,
+    );
   } catch (error) {
     logger.debug(
       `Tree API failed for ${sourceKey}, falling back to sequential listing: ${formatError(error)}`,
@@ -513,14 +515,16 @@ async function executeSourceFetch(params: {
     skillsToFetch.map(async (skillDir) => {
       // Recursively fetch all files in this skill directory
       // Use pre-fetched files from discovery phase if available
-      const allFiles = plan.skillFilesMap[skillDir.name] ?? (await listDirectoryRecursive({
-        client,
-        owner: parsed.owner,
-        repo: parsed.repo,
-        path: skillDir.path,
-        ref,
-        semaphore,
-      }));
+      const allFiles =
+        plan.skillFilesMap[skillDir.name] ??
+        (await listDirectoryRecursive({
+          client,
+          owner: parsed.owner,
+          repo: parsed.repo,
+          path: skillDir.path,
+          ref,
+          semaphore,
+        }));
 
       // Filter out files exceeding MAX_FILE_SIZE
       const files = allFiles.filter((file) => {
