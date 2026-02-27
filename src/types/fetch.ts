@@ -25,7 +25,7 @@ export const GitHubTreeEntrySchema = z.looseObject({
   type: z.enum(["blob", "tree", "commit"]),
   sha: z.string(),
   size: z.optional(z.number()),
-  url: z.string(),
+  url: z.optional(z.string()),
 });
 export type GitHubTreeEntry = z.infer<typeof GitHubTreeEntrySchema>;
 
@@ -34,7 +34,7 @@ export type GitHubTreeEntry = z.infer<typeof GitHubTreeEntrySchema>;
  */
 export const GitHubTreeSchema = z.looseObject({
   sha: z.string(),
-  url: z.string(),
+  url: z.optional(z.string()),
   tree: z.array(GitHubTreeEntrySchema),
   truncated: z.boolean(),
 });
