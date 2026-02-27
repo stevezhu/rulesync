@@ -22,6 +22,7 @@ export default defineConfig([
       "**/eslint-plugin-*.js",
       "**/tmp/**",
       "**/docs/**",
+      "**/.rulesync/**",
     ],
   },
 
@@ -89,7 +90,7 @@ export default defineConfig([
   },
 
   {
-    files: ["src/**/*.test.ts", "scripts/**/*.test.ts"],
+    files: ["src/**/*.test.ts", "scripts/**/*.test.ts", "src/**/*.bench.ts"],
     languageOptions: {
       parser: tseslint.parser,
       parserOptions: {

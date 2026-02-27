@@ -1,6 +1,8 @@
 import { Semaphore } from "es-toolkit/promise";
 
 import type { GitHubFileEntry } from "../types/fetch.js";
+import { formatError } from "../utils/error.js";
+import { logger } from "../utils/logger.js";
 import type { GitHubClient } from "./github-client.js";
 
 const MAX_RECURSION_DEPTH = 15;
@@ -31,6 +33,38 @@ export async function listDirectoryRecursive(params: {
   semaphore: Semaphore;
 }): Promise<GitHubFileEntry[]> {
   const { client, owner, repo, path, ref, depth = 0, semaphore } = params;
+
+  // Try using Tree API for better performance (one API call instead of many)
+  if (depth === 0 && ref) {
+    try {
+      const tree = await withSemaphore(semaphore, () => client.getTree(owner, repo, ref, true));
+      if (!tree.truncated) {
+        // Filter tree entries by path prefix
+        const prefix = path === "." || path === "" ? "" : path.endsWith("/") ? path : path + "/";
+        return tree.tree
+          .filter((entry) => {
+            if (entry.type !== "blob") return false;
+            if (prefix === "") return true;
+            return entry.path.startsWith(prefix);
+          })
+          .map((entry) => ({
+            name: entry.path.split("/").pop() ?? "",
+            path: entry.path,
+            sha: entry.sha,
+            size: entry.size ?? 0,
+            type: "file",
+            download_url: null,
+          }));
+      }
+      logger.debug(
+        `Tree API result for ${owner}/${repo}@${ref} is truncated, falling back to recursive listing.`,
+      );
+    } catch (error) {
+      logger.debug(
+        `Tree API failed for ${owner}/${repo}@${ref}, falling back to recursive listing: ${formatError(error)}`,
+      );
+    }
+  }
 
   if (depth > MAX_RECURSION_DEPTH) {
     throw new Error(

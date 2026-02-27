@@ -381,6 +381,70 @@ describe("GitHubClient", () => {
       );
     });
   });
+
+  describe("getTree", () => {
+    it("should return tree contents", async () => {
+      const mockTree = {
+        sha: "tree-sha",
+        url: "https://api.github.com/tree-url",
+        tree: [
+          {
+            path: "file1.md",
+            mode: "100644",
+            type: "blob",
+            sha: "blob-sha",
+            size: 100,
+            url: "https://api.github.com/blob-url",
+          },
+        ],
+        truncated: false,
+      };
+
+      vi.spyOn(global, "fetch").mockResolvedValueOnce(
+        new Response(JSON.stringify(mockTree), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+
+      const client = new GitHubClient();
+      const tree = await client.getTree("owner", "repo", "main");
+
+      expect(tree.sha).toBe("tree-sha");
+      expect(tree.tree).toHaveLength(1);
+      expect(tree.tree[0]?.path).toBe("file1.md");
+    });
+
+    it("should handle missing url fields in tree entries", async () => {
+      const mockTree = {
+        sha: "tree-sha",
+        // Top-level url can also be missing
+        tree: [
+          {
+            path: "submodule",
+            mode: "160000",
+            type: "commit",
+            sha: "commit-sha",
+            // url is missing here
+          },
+        ],
+        truncated: false,
+      };
+
+      vi.spyOn(global, "fetch").mockResolvedValueOnce(
+        new Response(JSON.stringify(mockTree), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+
+      const client = new GitHubClient();
+      const tree = await client.getTree("owner", "repo", "main");
+
+      expect(tree.tree[0]?.path).toBe("submodule");
+      expect(tree.tree[0]?.url).toBeUndefined();
+    });
+  });
 });
 
 describe("logGitHubAuthHints", () => {

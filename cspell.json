@@ -14,14 +14,20 @@
     "coverage/**",
     "dist/**",
     "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
     "node_modules/**",
     ".pnpm-store/**",
     ".git/**",
     ".gitignore",
     "docs/**",
-    ".rulesync/**"
+    ".rulesync/**",
+    "mdrip/**"
   ],
   "words": [
+    "roundtrips",
+    "automocked",
+    "jsexample",
+    "mdrip",
     "agentic",
     "anthropics",
     "agentrequested",
