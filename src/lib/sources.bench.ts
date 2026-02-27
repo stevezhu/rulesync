@@ -1,6 +1,8 @@
 import { bench, describe, vi } from "vitest";
 
 import { setupTestDirectory } from "../test-utils/test-directories.js";
+import type { GitHubFileEntry, GitHubTree } from "../types/fetch.js";
+import { GitHubClient } from "./github-client.js";
 import { resolveAndFetchSources } from "./sources.js";
 
 /**
@@ -15,46 +17,28 @@ import { resolveAndFetchSources } from "./sources.js";
 const NETWORK_LATENCY = 5;
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-type MockClientInstance = {
-  getDefaultBranch: (...args: unknown[]) => Promise<string>;
-  resolveRefToSha: (...args: unknown[]) => Promise<string>;
-  getTree: (...args: unknown[]) => Promise<unknown>;
-  listDirectory: (...args: unknown[]) => Promise<unknown[]>;
-  getFileContent: (...args: unknown[]) => Promise<string>;
-};
+vi.mock(import("./github-client.js"), async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./github-client.js")>();
+  const MockGitHubClient = vi.fn(
+    class extends actual.GitHubClient {
+      static override resolveToken = vi.fn().mockReturnValue("mock-token");
+    },
+  );
 
-let mockClientInstance: MockClientInstance;
+  // Set up mocked methods on the prototype so they are shared across all instances
+  MockGitHubClient.prototype.getDefaultBranch = vi.fn();
+  MockGitHubClient.prototype.listDirectory = vi.fn();
+  MockGitHubClient.prototype.getFileContent = vi.fn();
+  MockGitHubClient.prototype.resolveRefToSha = vi.fn();
+  MockGitHubClient.prototype.getTree = vi.fn();
 
-vi.mock("./github-client.js", () => ({
-  GitHubClient: class MockGitHubClient {
-    static resolveToken = vi.fn().mockReturnValue("mock-token");
-    getDefaultBranch(...args: unknown[]) {
-      return mockClientInstance.getDefaultBranch(...args);
-    }
-    listDirectory(...args: unknown[]) {
-      return mockClientInstance.listDirectory(...args);
-    }
-    getFileContent(...args: unknown[]) {
-      return mockClientInstance.getFileContent(...args);
-    }
-    resolveRefToSha(...args: unknown[]) {
-      return mockClientInstance.resolveRefToSha(...args);
-    }
-    getTree(...args: unknown[]) {
-      return mockClientInstance.getTree(...args);
-    }
-  },
-  GitHubClientError: class GitHubClientError extends Error {
-    statusCode?: number;
-    constructor(message: string, statusCode?: number) {
-      super(message);
-      this.statusCode = statusCode;
-    }
-  },
-  logGitHubAuthHints: vi.fn(),
-}));
+  return {
+    ...actual,
+    GitHubClient: MockGitHubClient,
+  };
+});
 
-vi.mock("../utils/file.js", async (importOriginal) => {
+vi.mock(import("../utils/file.js"), async (importOriginal) => {
   const actual = await importOriginal<typeof import("../utils/file.js")>();
   return {
     ...actual,
@@ -64,18 +48,23 @@ vi.mock("../utils/file.js", async (importOriginal) => {
   };
 });
 
-vi.mock("../utils/logger.js", () => ({
-  logger: {
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    success: vi.fn(),
-    configure: vi.fn(),
-  },
-}));
+vi.mock(import("../utils/logger.js"), async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../utils/logger.js")>();
+  return {
+    ...actual,
+    logger: {
+      ...actual.logger,
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      success: vi.fn(),
+      configure: vi.fn(),
+    } as unknown as typeof actual.logger,
+  };
+});
 
-vi.mock("./sources-lock.js", async (importOriginal) => {
+vi.mock(import("./sources-lock.js"), async (importOriginal) => {
   const actual = await importOriginal<typeof import("./sources-lock.js")>();
   return {
     ...actual,
@@ -96,20 +85,22 @@ describe("install command performance", async () => {
   const fileNames = Array.from({ length: 10 }, (_, i) => `file-${i + 1}.ts`);
 
   const setupMocks = (useTreeApi: boolean) => {
-    mockClientInstance = {
-      getDefaultBranch: vi.fn().mockImplementation(async () => {
-        await sleep(NETWORK_LATENCY);
-        return "main";
-      }),
-      resolveRefToSha: vi.fn().mockImplementation(async () => {
-        await sleep(NETWORK_LATENCY);
-        return "abc123def456";
-      }),
-      getTree: vi.fn().mockImplementation(async (_owner, _repo, _ref, _recursive) => {
+    vi.mocked(GitHubClient.prototype.getDefaultBranch).mockImplementation(async () => {
+      await sleep(NETWORK_LATENCY);
+      return "main";
+    });
+
+    vi.mocked(GitHubClient.prototype.resolveRefToSha).mockImplementation(async () => {
+      await sleep(NETWORK_LATENCY);
+      return "abc123def456";
+    });
+
+    vi.mocked(GitHubClient.prototype.getTree).mockImplementation(
+      async (_owner, _repo, _ref, _recursive) => {
         await sleep(NETWORK_LATENCY);
         if (!useTreeApi) throw new Error("Tree API disabled");
 
-        const tree = [];
+        const tree: GitHubTree["tree"] = [];
         for (const skill of skillNames) {
           tree.push({ path: `skills/${skill}`, type: "tree", mode: "040000", sha: "sha-" + skill });
           for (let i = 0; i < fileNames.length; i++) {
@@ -124,38 +115,50 @@ describe("install command performance", async () => {
               ...(i === 0
                 ? {}
                 : { url: `https://api.github.com/repos/org/repo/git/blobs/sha-${skill}-${file}` }),
-            });
+            } as GitHubTree["tree"][number]);
           }
         }
-        return { sha: "tree-sha", tree, truncated: false };
-      }),
-      listDirectory: vi.fn().mockImplementation(async (_owner, _repo, path) => {
+        return { sha: "tree-sha", tree, truncated: false } as GitHubTree;
+      },
+    );
+
+    vi.mocked(GitHubClient.prototype.listDirectory).mockImplementation(
+      async (_owner, _repo, path) => {
         await sleep(NETWORK_LATENCY);
         if (path === "skills") {
-          return skillNames.map((name) => ({
-            name,
-            path: `skills/${name}`,
-            type: "dir",
-            sha: "sha-" + name,
-            size: 0,
-          }));
+          return skillNames.map(
+            (name) =>
+              ({
+                name,
+                path: `skills/${name}`,
+                type: "dir",
+                sha: "sha-" + name,
+                size: 0,
+                download_url: null,
+              }) as unknown as GitHubFileEntry,
+          );
         }
         if (path.startsWith("skills/")) {
-          return fileNames.map((name) => ({
-            name,
-            path: `${path}/${name}`,
-            type: "file",
-            sha: `sha-${path}-${name}`,
-            size: 100,
-          }));
+          return fileNames.map(
+            (name) =>
+              ({
+                name,
+                path: `${path}/${name}`,
+                type: "file",
+                sha: `sha-${path}-${name}`,
+                size: 100,
+                download_url: null,
+              }) as unknown as GitHubFileEntry,
+          );
         }
         return [];
-      }),
-      getFileContent: vi.fn().mockImplementation(async () => {
-        await sleep(NETWORK_LATENCY);
-        return "mock content";
-      }),
-    };
+      },
+    );
+
+    vi.mocked(GitHubClient.prototype.getFileContent).mockImplementation(async () => {
+      await sleep(NETWORK_LATENCY);
+      return "mock content";
+    });
   };
 
   bench(
