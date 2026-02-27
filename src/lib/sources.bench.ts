@@ -70,29 +70,32 @@ vi.mock("./sources-lock.js", async (importOriginal) => {
 describe("install command performance", async () => {
   const { testDir, cleanup } = await setupTestDirectory();
   
-  // Setup a scenario with 3 sources, each having 5 skills, each skill having 3 files.
-  // Total: 3 default branch calls, 3 SHA resolutions, 3 Tree/List calls, 15 skills, 45 file fetches.
-  const sources = [
-    { source: "https://github.com/org/repo-1" },
-    { source: "https://github.com/org/repo-2" },
-    { source: "https://github.com/org/repo-3" },
-  ];
+  // Scale: 5 sources * 20 skills * 10 files = 1000 files.
+  const sources = Array.from({ length: 5 }, (_, i) => ({ 
+    source: `https://github.com/org/repo-${i + 1}` 
+  }));
 
-  const skillNames = ["skill-1", "skill-2", "skill-3", "skill-4", "skill-5"];
-  const fileNames = ["SKILL.md", "index.ts", "utils.ts"];
+  const skillNames = Array.from({ length: 20 }, (_, i) => `skill-${i + 1}`);
+  const fileNames = Array.from({ length: 10 }, (_, i) => `file-${i + 1}.ts`);
 
   const setupMocks = (useTreeApi: boolean) => {
+    // Use fake timers to avoid real-time delays during network simulation
+    vi.useFakeTimers();
+
     mockClientInstance = {
       getDefaultBranch: vi.fn().mockImplementation(async () => {
-        await sleep(NETWORK_LATENCY);
+        vi.advanceTimersByTime(NETWORK_LATENCY);
+        await Promise.resolve();
         return "main";
       }),
       resolveRefToSha: vi.fn().mockImplementation(async () => {
-        await sleep(NETWORK_LATENCY);
+        vi.advanceTimersByTime(NETWORK_LATENCY);
+        await Promise.resolve();
         return "abc123def456";
       }),
       getTree: vi.fn().mockImplementation(async (_owner, _repo, _ref, recursive) => {
-        await sleep(NETWORK_LATENCY);
+        vi.advanceTimersByTime(NETWORK_LATENCY);
+        await Promise.resolve();
         if (!useTreeApi) throw new Error("Tree API disabled");
         
         const tree = [];
@@ -114,7 +117,8 @@ describe("install command performance", async () => {
         return { sha: "tree-sha", tree, truncated: false };
       }),
       listDirectory: vi.fn().mockImplementation(async (_owner, _repo, path) => {
-        await sleep(NETWORK_LATENCY);
+        vi.advanceTimersByTime(NETWORK_LATENCY);
+        await Promise.resolve();
         if (path === "skills") {
           return skillNames.map(name => ({ name, path: `skills/${name}`, type: "dir", sha: "sha-" + name, size: 0 }));
         }
@@ -124,31 +128,30 @@ describe("install command performance", async () => {
         return [];
       }),
       getFileContent: vi.fn().mockImplementation(async () => {
-        await sleep(NETWORK_LATENCY);
+        vi.advanceTimersByTime(NETWORK_LATENCY);
+        await Promise.resolve();
         return "mock content";
       }),
     };
   };
 
-  bench("Optimized: Parallel Discovery + Tree API + Parallel Fetch", async () => {
+  bench("Optimized: Parallel Discovery + Tree API + Parallel Fetch (1000 files)", async () => {
     setupMocks(true);
     await resolveAndFetchSources({
       sources,
       baseDir: testDir,
       options: { updateSources: true },
     });
-  }, { iterations: 5 });
+    vi.useRealTimers();
+  }, { iterations: 10 });
 
-  bench("Unoptimized (Simulated): Sequential Fallback (No Tree API)", async () => {
+  bench("Unoptimized (Simulated): Sequential Fallback (1000 files)", async () => {
     setupMocks(false);
     await resolveAndFetchSources({
       sources,
       baseDir: testDir,
       options: { updateSources: true },
     });
-  }, { iterations: 1 }); // Sequential is much slower, run fewer iterations
-  
-  // Note: We don't have a truly "sequential" version of resolveAndFetchSources anymore
-  // as it now uses Promise.all for many phases, but forcing the Tree API fallback
-  // demonstrates the massive saving in RTTs.
+    vi.useRealTimers();
+  }, { iterations: 2 });
 });
