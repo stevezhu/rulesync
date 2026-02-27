@@ -17,6 +17,30 @@ export const GitHubFileTypeSchema = z.enum(["file", "dir", "symlink", "submodule
 export type GitHubFileType = z.infer<typeof GitHubFileTypeSchema>;
 
 /**
+ * GitHub tree entry from Git Trees API
+ */
+export const GitHubTreeEntrySchema = z.looseObject({
+  path: z.string(),
+  mode: z.string(),
+  type: z.enum(["blob", "tree", "commit"]),
+  sha: z.string(),
+  size: z.optional(z.number()),
+  url: z.string(),
+});
+export type GitHubTreeEntry = z.infer<typeof GitHubTreeEntrySchema>;
+
+/**
+ * GitHub tree response from Git Trees API
+ */
+export const GitHubTreeSchema = z.looseObject({
+  sha: z.string(),
+  url: z.string(),
+  tree: z.array(GitHubTreeEntrySchema),
+  truncated: z.boolean(),
+});
+export type GitHubTree = z.infer<typeof GitHubTreeSchema>;
+
+/**
  * GitHub file/directory entry from contents API
  */
 export const GitHubFileEntrySchema = z.looseObject({

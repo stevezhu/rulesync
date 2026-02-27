@@ -8,11 +8,13 @@ import type {
   GitHubFileEntry,
   GitHubRelease,
   GitHubRepoInfo,
+  GitHubTree,
 } from "../types/fetch.js";
 import {
   GitHubFileEntrySchema,
   GitHubReleaseSchema,
   GitHubRepoInfoSchema,
+  GitHubTreeSchema,
 } from "../types/fetch.js";
 import { formatError } from "../utils/error.js";
 import { logger } from "../utils/logger.js";
@@ -95,6 +97,33 @@ export class GitHubClient {
         throw new GitHubClientError(
           `Invalid repository info response: ${formatError(parsed.error)}`,
         );
+      }
+      return parsed.data;
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  /**
+   * Get a recursive tree from a repository
+   */
+  async getTree(
+    owner: string,
+    repo: string,
+    treeSha: string,
+    recursive = true,
+  ): Promise<GitHubTree> {
+    try {
+      const { data } = await this.octokit.git.getTree({
+        owner,
+        repo,
+        tree_sha: treeSha,
+        recursive: recursive ? "1" : undefined,
+      });
+
+      const parsed = GitHubTreeSchema.safeParse(data);
+      if (!parsed.success) {
+        throw new GitHubClientError(`Invalid tree response: ${formatError(parsed.error)}`);
       }
       return parsed.data;
     } catch (error) {
