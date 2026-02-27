@@ -1,8 +1,5 @@
-import { join } from "node:path";
-
 import { bench, describe, vi } from "vitest";
 
-import { RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { resolveAndFetchSources } from "./sources.js";
 
@@ -18,24 +15,32 @@ import { resolveAndFetchSources } from "./sources.js";
 const NETWORK_LATENCY = 5;
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-let mockClientInstance: any;
+type MockClientInstance = {
+  getDefaultBranch: (...args: unknown[]) => Promise<string>;
+  resolveRefToSha: (...args: unknown[]) => Promise<string>;
+  getTree: (...args: unknown[]) => Promise<unknown>;
+  listDirectory: (...args: unknown[]) => Promise<unknown[]>;
+  getFileContent: (...args: unknown[]) => Promise<string>;
+};
+
+let mockClientInstance: MockClientInstance;
 
 vi.mock("./github-client.js", () => ({
   GitHubClient: class MockGitHubClient {
     static resolveToken = vi.fn().mockReturnValue("mock-token");
-    getDefaultBranch(...args: any[]) {
+    getDefaultBranch(...args: unknown[]) {
       return mockClientInstance.getDefaultBranch(...args);
     }
-    listDirectory(...args: any[]) {
+    listDirectory(...args: unknown[]) {
       return mockClientInstance.listDirectory(...args);
     }
-    getFileContent(...args: any[]) {
+    getFileContent(...args: unknown[]) {
       return mockClientInstance.getFileContent(...args);
     }
-    resolveRefToSha(...args: any[]) {
+    resolveRefToSha(...args: unknown[]) {
       return mockClientInstance.resolveRefToSha(...args);
     }
-    getTree(...args: any[]) {
+    getTree(...args: unknown[]) {
       return mockClientInstance.getTree(...args);
     }
   },
@@ -80,7 +85,7 @@ vi.mock("./sources-lock.js", async (importOriginal) => {
 });
 
 describe("install command performance", async () => {
-  const { testDir, cleanup } = await setupTestDirectory();
+  const { testDir } = await setupTestDirectory();
 
   // Scale: 5 sources * 20 skills * 10 files = 1000 files.
   const sources = Array.from({ length: 5 }, (_, i) => ({
@@ -100,7 +105,7 @@ describe("install command performance", async () => {
         await sleep(NETWORK_LATENCY);
         return "abc123def456";
       }),
-      getTree: vi.fn().mockImplementation(async (_owner, _repo, _ref, recursive) => {
+      getTree: vi.fn().mockImplementation(async (_owner, _repo, _ref, _recursive) => {
         await sleep(NETWORK_LATENCY);
         if (!useTreeApi) throw new Error("Tree API disabled");
 

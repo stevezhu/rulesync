@@ -48,7 +48,7 @@ export async function listDirectoryRecursive(params: {
             return entry.path.startsWith(prefix);
           })
           .map((entry) => ({
-            name: entry.path.split("/").pop()!,
+            name: entry.path.split("/").pop() ?? "",
             path: entry.path,
             sha: entry.sha,
             size: entry.size ?? 0,

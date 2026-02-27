@@ -9,6 +9,7 @@ import {
   RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
 import { getLocalSkillDirNames } from "../features/skills/skills-utils.js";
+import type { GitHubFileEntry, ParsedSource } from "../types/fetch.js";
 import { formatError } from "../utils/error.js";
 import {
   checkPathTraversal,
@@ -22,6 +23,7 @@ import { listDirectoryRecursive, withSemaphore } from "./github-utils.js";
 import { parseSource } from "./source-parser.js";
 import {
   type LockedSkill,
+  type LockedSource,
   type SourcesLock,
   computeSkillIntegrity,
   createEmptyLock,
@@ -56,9 +58,9 @@ type SourcePlan = {
   sourceEntry: SourceEntry;
   client: GitHubClient;
   baseDir: string;
-  parsed: any;
+  parsed: ParsedSource;
   sourceKey: string;
-  locked: any;
+  locked: LockedSource | undefined;
   lockedSkillNames: string[];
   ref: string;
   resolvedSha: string;
@@ -179,11 +181,14 @@ export async function resolveAndFetchSources(params: {
   const results = await Promise.all(
     executionTasks.map(async (task) => {
       if (task.isSkip) {
+        if (!task.plan.locked) {
+          throw new Error(`Locked source entry missing for skipped source: ${task.plan.sourceKey}`);
+        }
         return {
           skillCount: 0,
           fetchedSkillNames: task.plan.lockedSkillNames,
           sourceKey: task.plan.sourceKey,
-          updatedSourceEntry: task.plan.locked!,
+          updatedSourceEntry: task.plan.locked,
         };
       }
 
@@ -298,6 +303,7 @@ async function prepareSourcePlan(params: {
         resolvedSha,
         requestedRef,
         remoteSkillDirs: [],
+        skillFilesMap: {},
         isSkipReFetch: true,
       };
     }
@@ -325,12 +331,12 @@ async function prepareSourcePlan(params: {
         const relativePath = entry.path.substring(prefix.length);
         if (!relativePath) continue;
         const parts = relativePath.split("/");
-        const skillName = parts[0]!;
+        const skillName = parts[0] ?? "";
         skillDirsSet.add(skillName);
         if (entry.type === "blob") {
           if (!skillFilesMap[skillName]) skillFilesMap[skillName] = [];
           skillFilesMap[skillName].push({
-            name: parts[parts.length - 1]!,
+            name: parts[parts.length - 1] ?? "",
             path: entry.path,
             sha: entry.sha,
             size: entry.size ?? 0,
@@ -504,7 +510,7 @@ async function executeSourceFetch(params: {
   skillCount: number;
   fetchedSkillNames: string[];
   sourceKey: string;
-  updatedSourceEntry: any;
+  updatedSourceEntry: LockedSource;
 }> {
   const { plan, skillsToFetch, semaphore, curatedDir } = params;
   const { client, parsed, sourceKey, locked, ref, resolvedSha, requestedRef } = plan;
