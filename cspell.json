@@ -20,9 +20,14 @@
     ".git/**",
     ".gitignore",
     "docs/**",
-    ".rulesync/**"
+    ".rulesync/**",
+    "mdrip/**"
   ],
   "words": [
+    "roundtrips",
+    "automocked",
+    "jsexample",
+    "mdrip",
     "agentic",
     "anthropics",
     "agentrequested",

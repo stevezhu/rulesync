@@ -1,0 +1,24 @@
+{
+  "lockfileVersion": 1,
+  "sources": {
+    "antfu/skills": {
+      "requestedRef": "main",
+      "resolvedRef": "3fb90f01f5298b00de0a2500aab1ddd1357e6eb2",
+      "resolvedAt": "2026-02-27T03:10:24.759Z",
+      "skills": {
+        "pnpm": {
+          "integrity": "sha256-4c071c7abc636e3fbba9ff3b7248d7abae31a9062c7435baf37651b430815de3"
+        },
+        "tsdown": {
+          "integrity": "sha256-dfda1ff78f65eda85e29ae4bbc50228822f8762cf1f2aec49d690aa5e01eeb62"
+        },
+        "vite": {
+          "integrity": "sha256-46172f6a3966756e6c7493a5199d91384af892b4d4288dd9b49934faa0d5573c"
+        },
+        "vitest": {
+          "integrity": "sha256-bc7d2af50a961f160723fe418dc04e27b96b93c2c76579667bbbc49b16e99997"
+        }
+      }
+    }
+  }
+}

@@ -17,4 +17,10 @@
   "simulateCommands": true,
   "simulateSubagents": true,
   "simulateSkills": true,
+  "sources": [
+    {
+      "source": "antfu/skills",
+      "skills": ["pnpm", "tsdown", "vite", "vitest"],
+    },
+  ],
 }
